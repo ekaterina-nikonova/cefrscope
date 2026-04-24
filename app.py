@@ -87,7 +87,12 @@ def feature_chart(
 
 # ── Header ────────────────────────────────────────────────────────────────────
 
-st.title("CEFRscope")
+_heading_parts = list(zip(["CEFR", "s", "c", "o", "p", "e"], LEVELS))
+_heading_html = "".join(
+    f'<span style="color:{LEVEL_META[lv][1]}">{seg}</span>'
+    for seg, lv in _heading_parts
+)
+st.markdown(f'<h1>{_heading_html}</h1>', unsafe_allow_html=True)
 st.markdown(_md("intro.md"))
 
 # CEFR scale legend
