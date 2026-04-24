@@ -16,29 +16,9 @@ The models are trained on ~1,200 balanced samples (A1–C2) from British Council
 
 ---
 
-## What you see on screen
+## Showing the results
 
-```
-┌─ CEFRscope ───────────────────────────────────────────────────────────────┐
-│  Title + one-line description                                              │
-│  A1 │ A2 │ B1 │ B2 │ C1 │ C2  ← colour-coded level legend                │
-├────────────────────────────────────────────────────────────────────────────┤
-│  Text input area                                  [Classify ▶]            │
-├────────────────────────────────────────────────────────────────────────────┤
-│                         Results (three columns)                            │
-│                                                                            │
-│  Logistic Regression    Multinomial NB (TF-IDF)   NLTK Naive Bayes        │
-│  ┌──────────────┐       ┌──────────────┐          ┌──────────────┐        │
-│  │  B2          │       │  B2          │          │  B1          │        │
-│  │  Upper Inter.│       │  Upper Inter.│          │  Intermediate│        │
-│  │  66% conf.   │       │  28% conf.   │          │  98% conf.   │        │
-│  └──────────────┘       └──────────────┘          └──────────────┘        │
-│  [prob bar chart]       [prob bar chart]          [prob bar chart]        │
-│  [feature chart]        [feature chart]           [feature chart]         │
-├────────────────────────────────────────────────────────────────────────────┤
-│  ▶ About the models  (expandable)                                          │
-└────────────────────────────────────────────────────────────────────────────┘
-```
+When the classification is complete, the app displays:
 
 **Level badge** — predicted level, its plain-English description, and the model's confidence score.
 

@@ -193,8 +193,8 @@ with st.expander("How it was built"):
         """
 #### The task
 
-Automatically assigning a CEFR level to an English text is a genuinely hard
-multi-class problem. Adjacent levels (e.g. B1 vs B2) share overlapping vocabulary
+Automatically assigning a CEFR level to an English text is useful for any language learner,
+but it is a genuinely hard multi-class problem. Adjacent levels (e.g. B1 vs B2) share overlapping vocabulary
 and grammar, and human experts frequently disagree on the boundary between them.
 The best published results using deep-learning approaches reach around 69% F1;
 bag-of-words statistical models typically land closer to 50–60%.
