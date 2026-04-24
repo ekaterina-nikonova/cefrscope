@@ -1,0 +1,7 @@
+streamlit>=1.30
+scikit-learn>=1.6
+nltk>=3.9
+numpy>=1.26
+pandas>=2.0
+matplotlib>=3.8
+joblib>=1.3
