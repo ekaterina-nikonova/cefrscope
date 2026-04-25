@@ -34,9 +34,34 @@ Three vectorization strategies were evaluated:
 
 | Representation | Used for | Key property |
 |---|---|---|
-| Boolean word presence | NLTK Naive Bayes | 8,950 features from Brown + Reuters + Movie Reviews corpora |
-| Count Vectorizer (BoW) | Logistic Regression baseline | Raw term frequency; fast, interpretable |
-| TF-IDF Vectorizer | Multinomial NB | Down-weights common terms; rewards rare, discriminative words |
+| Boolean word/bigram presence | NLTK Naive Bayes | ~10,900 features: unigrams (positions 50–9,000) + bigrams (positions 50–2,050) from Brown + Reuters + Movie Reviews corpora |
+| Count Vectorizer (BoW) | Logistic Regression baseline | Raw term frequency; up to 15,000 unigrams and n-grams (N ≤ 3) |
+| TF-IDF Vectorizer | Multinomial NB | Down-weights common terms; rewards rare, discriminative words; up to 15,000 n-grams (N ≤ 3) |
+
+**N-grams** capture multi-word expressions that carry level information beyond the sum of their
+parts. A good example is the phrasal verb *call off*: the words "call" and "off" are individually
+B1 vocabulary, but their combination signals B2 competence. Using bigrams (N=2) and trigrams
+(N=3) allows the models to recognise such collocations directly.
+
+Two limitations apply. First, common phrasal verb particles — *off*, *up*, *out*, *in* — are
+English stopwords and are removed during preprocessing. The bigram "call off" therefore never
+forms in the training or inference pipelines; only the unigram "call" survives. Second,
+separable phrasal verbs such as *call the meeting off* break the particle away from the verb
+with intervening words, so no contiguous n-gram of any length can capture the construction.
+These are known constraints of the bag-of-words pipeline; addressing them would require
+dependency-based features or a two-pass vectorisation (n-grams extracted before stopword
+removal).
+
+**Readability metrics** add four sentence-level features computed on the raw text before any
+preprocessing, appended to the bag-of-words vector for the Logistic Regression and Multinomial
+NB models:
+
+| Feature | Rationale |
+|---|---|
+| Average sentence length (words) | Longer, more complex sentences are a hallmark of higher CEFR levels |
+| Average word length (characters) | Longer words correlate with rarer, more advanced vocabulary |
+| Type-token ratio | Higher lexical diversity indicates a wider active vocabulary |
+| Long-word ratio (words ≥ 7 characters) | Proxy for C1/C2 vocabulary; advanced words tend to be morphologically longer |
 
 ---
 
@@ -46,11 +71,13 @@ Five models were trained and evaluated on a stratified 75/25 train/test split:
 
 | Model | Accuracy | F1 |
 |---|---|---|
-| Logistic Regression (Count BoW) | 51.5% | 50.8% |
-| NLTK Naive Bayes (boolean features) | 55.4% | 54.0% |
-| Multinomial NB — Count Vectorizer | ~49% | ~48% |
-| **Multinomial NB — TF-IDF** | **49.5%** | **49.3%** |
+| Logistic Regression (Count BoW, unigrams) | 51.5% | 50.8% |
+| Multinomial NB — Count Vectorizer (unigrams) | ~49% | ~48% |
+| Multinomial NB — TF-IDF (unigrams) | 49.5% | 49.3% |
 | Feed-forward neural network (Word2Vec) | ~44% | ~43% |
+| **Logistic Regression (N-grams + readability)** | **54.1%** | **53.4%** |
+| **Multinomial NB — TF-IDF (N-grams)** | **55.1%** | **54.8%** |
+| **NLTK Naive Bayes (unigrams + bigrams)** | **57.8%** | **56.9%** |
 
 The **TF-IDF vectorizer outperformed Count Vectorizer** for Multinomial NB, consistent
 with the expectation that rarer, level-specific vocabulary is more informative than

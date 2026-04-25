@@ -6,6 +6,9 @@ import joblib
 import nltk
 import numpy as np
 from nltk.corpus import stopwords
+from scipy.sparse import csr_matrix, hstack
+
+from .preprocessing import compute_readability
 
 LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 MODELS_DIR = Path(__file__).resolve().parent.parent / 'models'
@@ -19,14 +22,17 @@ class Prediction:
     feature_description: str = ""
 
 
-def _tokens(text: str) -> set[str]:
+def _token_list(text: str) -> list[str]:
+    """Return ordered, lowercase, alpha-only, non-stopword tokens."""
     stop_words = set(stopwords.words('english'))
-    return {w.lower() for w in nltk.word_tokenize(text) if w.lower() not in stop_words}
+    return [
+        w.lower() for w in nltk.word_tokenize(text)
+        if w.isalpha() and w.lower() not in stop_words
+    ]
 
 
 def _preprocess(text: str) -> str:
-    stop_words = set(stopwords.words('english'))
-    return ' '.join(w for w in nltk.word_tokenize(text) if w.lower() not in stop_words)
+    return ' '.join(_token_list(text))
 
 
 class LRClassifier:
@@ -35,8 +41,8 @@ class LRClassifier:
         "Baseline model: bag-of-words + logistic regression. "
         "Coefficients show which words push the prediction toward the identified level."
     )
-    accuracy = 0.515
-    f1 = 0.508
+    accuracy = 0.541
+    f1 = 0.534
 
     def __init__(self) -> None:
         self._vec = joblib.load(MODELS_DIR / 'lr_vectorizer.pkl')
@@ -45,23 +51,26 @@ class LRClassifier:
 
     def predict(self, text: str) -> Prediction:
         processed = _preprocess(text)
-        vec = self._vec.transform([processed])
+        X_bow = self._vec.transform([processed])
+        X_read = csr_matrix(np.array([compute_readability(text)]))
+        vec = hstack([X_bow, X_read])
         label = str(self._clf.predict(vec)[0])
         proba = self._clf.predict_proba(vec)[0]
         probs = {str(c): float(p) for c, p in zip(self._clf.classes_, proba)}
 
         class_idx = self._classes.index(label)
         feat_names = self._vec.get_feature_names_out()
+        n_vocab = len(feat_names)
         coefs = self._clf.coef_[class_idx]
-        text_arr = vec.toarray()[0]
+        text_arr = X_bow.toarray()[0]
 
         present = text_arr > 0
         if present.any():
-            masked = np.where(present, coefs, -np.inf)
-            top_idx = np.argsort(masked)[-10:][::-1]
+            masked = np.where(present, coefs[:n_vocab], -np.inf)
+            top_idx = list(np.argsort(masked)[-10:][::-1])
             top_idx = [i for i in top_idx if present[i] and coefs[i] > 0]
         else:
-            top_idx = list(np.argsort(coefs)[-10:][::-1])
+            top_idx = list(np.argsort(coefs[:n_vocab])[-10:][::-1])
 
         top_features = [(feat_names[i], float(coefs[i])) for i in top_idx]
 
@@ -79,8 +88,8 @@ class MNBClassifier:
         "Best-performing model: TF-IDF vectorization + Multinomial NB. "
         "Feature scores reflect how much each word's TF-IDF weight contributed to the prediction."
     )
-    accuracy = 0.495
-    f1 = 0.493
+    accuracy = 0.551
+    f1 = 0.548
 
     def __init__(self) -> None:
         self._vec = joblib.load(MODELS_DIR / 'mnb_vectorizer.pkl')
@@ -103,12 +112,13 @@ class MNBClassifier:
         present = tfidf_arr > 0
         if present.any():
             masked = np.where(present, contribution, -np.inf)
-            top_idx = np.argsort(masked)[-10:][::-1]
+            top_idx = list(np.argsort(masked)[-10:][::-1])
             top_idx = [i for i in top_idx if present[i]]
         else:
             top_idx = list(np.argsort(contribution)[-10:][::-1])
 
         top_features = [(feat_names[i], float(tfidf_arr[i])) for i in top_idx]
+
 
         return Prediction(
             label=label,
@@ -125,8 +135,8 @@ class NLTKNBClassifier:
         "Shows which words in your text most strongly indicate the predicted level "
         "compared to the next-best class."
     )
-    accuracy = 0.554
-    f1 = 0.540
+    accuracy = 0.578
+    f1 = 0.569
 
     def __init__(self) -> None:
         with open(MODELS_DIR / 'nltk_nb.pkl', 'rb') as fh:
@@ -135,8 +145,11 @@ class NLTKNBClassifier:
         self._word_features: list[str] = data['word_features']
 
     def _make_features(self, text: str) -> dict[str, bool]:
-        words = _tokens(text)
-        return {f'contains({w})': (w in words) for w in self._word_features}
+        tokens = _token_list(text)
+        word_set = set(tokens)
+        bigram_set = {f"{a} {b}" for a, b in nltk.bigrams(tokens)}
+        all_tokens = word_set | bigram_set
+        return {f'contains({w})': (w in all_tokens) for w in self._word_features}
 
     def predict(self, text: str) -> Prediction:
         features = self._make_features(text)

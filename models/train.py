@@ -10,6 +10,8 @@ from pathlib import Path
 
 import nltk
 import joblib
+import numpy as np
+from scipy.sparse import csr_matrix, hstack
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score
@@ -21,9 +23,11 @@ sys.path.insert(0, str(ROOT))
 
 from src.preprocessing import (
     build_word_features,
+    compute_readability,
     get_feature_sets,
     load_from_file,
-    to_flat_lists,
+    load_raw_from_file,
+    to_flat_lists_paired,
     to_tagged_documents,
 )
 
@@ -38,16 +42,29 @@ def _download_nltk():
         nltk.download(pkg, quiet=True)
 
 
-def train_lr(texts: list[str], labels: list[str]) -> None:
+def train_lr(texts: list[str], raw_texts: list[str], labels: list[str]) -> None:
     print("Training Logistic Regression...")
     t0 = time.time()
-    X_train, X_test, y_train, y_test = train_test_split(
-        texts, labels, test_size=0.25, random_state=42, stratify=labels
-    )
-    vec = CountVectorizer(min_df=2, max_features=8000)
+    idx = list(range(len(texts)))
+    idx_train, idx_test = train_test_split(idx, test_size=0.25, random_state=42, stratify=labels)
+    X_train = [texts[i] for i in idx_train]
+    X_test = [texts[i] for i in idx_test]
+    X_train_raw = [raw_texts[i] for i in idx_train]
+    X_test_raw = [raw_texts[i] for i in idx_test]
+    y_train = [labels[i] for i in idx_train]
+    y_test = [labels[i] for i in idx_test]
+
+    vec = CountVectorizer(min_df=2, max_features=15000, ngram_range=(1, 3))
     clf = LogisticRegression(C=0.5, max_iter=2000, random_state=42)
-    clf.fit(vec.fit_transform(X_train), y_train)
-    preds = clf.predict(vec.transform(X_test))
+
+    X_bow_train = vec.fit_transform(X_train)
+    X_read_train = csr_matrix(np.array([compute_readability(t) for t in X_train_raw]))
+    clf.fit(hstack([X_bow_train, X_read_train]), y_train)
+
+    X_bow_test = vec.transform(X_test)
+    X_read_test = csr_matrix(np.array([compute_readability(t) for t in X_test_raw]))
+    preds = clf.predict(hstack([X_bow_test, X_read_test]))
+
     acc = accuracy_score(y_test, preds)
     f1 = f1_score(y_test, preds, average='weighted')
     print(f"  accuracy: {acc:.3f}  F1: {f1:.3f}  ({time.time()-t0:.1f}s)")
@@ -62,10 +79,13 @@ def train_mnb(texts: list[str], labels: list[str]) -> None:
     X_train, X_test, y_train, y_test = train_test_split(
         texts, labels, test_size=0.25, random_state=42, stratify=labels
     )
-    vec = TfidfVectorizer(min_df=2, max_features=8000, sublinear_tf=True)
+
+    vec = TfidfVectorizer(min_df=2, max_features=15000, sublinear_tf=True, ngram_range=(1, 3))
     clf = MultinomialNB()
+
     clf.fit(vec.fit_transform(X_train), y_train)
     preds = clf.predict(vec.transform(X_test))
+
     acc = accuracy_score(y_test, preds)
     f1 = f1_score(y_test, preds, average='weighted')
     print(f"  accuracy: {acc:.3f}  F1: {f1:.3f}  ({time.time()-t0:.1f}s)")
@@ -78,7 +98,7 @@ def train_nltk_nb(dataset: dict) -> None:
     print("Building NLTK word features from corpora (may take a minute)...")
     t0 = time.time()
     word_features = build_word_features()
-    print(f"  {len(word_features)} word features built ({time.time()-t0:.1f}s)")
+    print(f"  {len(word_features)} features built ({time.time()-t0:.1f}s)")
 
     tagged_docs = to_tagged_documents(dataset)
     feature_sets = get_feature_sets(tagged_docs, word_features)
@@ -89,8 +109,7 @@ def train_nltk_nb(dataset: dict) -> None:
 
     print(f"Training NLTK NB on {len(train_set)} samples...")
     t1 = time.time()
-    import nltk as _nltk
-    classifier = _nltk.NaiveBayesClassifier.train(train_set)
+    classifier = nltk.NaiveBayesClassifier.train(train_set)
 
     preds = [classifier.classify(fs) for fs, _ in test_set]
     actual = [label for _, label in test_set]
@@ -108,11 +127,12 @@ if __name__ == '__main__':
 
     print(f"Loading dataset from {DATA_PATH}...\n")
     dataset = load_from_file(str(DATA_PATH))
-    texts, labels = to_flat_lists(dataset)
+    raw_dataset = load_raw_from_file(str(DATA_PATH))
+    texts, raw_texts, labels = to_flat_lists_paired(dataset, raw_dataset)
     level_counts = {lbl: labels.count(lbl) for lbl in set(labels)}
     print(f"Dataset: {len(texts)} texts — {level_counts}\n")
 
-    train_lr(texts, labels)
+    train_lr(texts, raw_texts, labels)
     print()
     train_mnb(texts, labels)
     print()
