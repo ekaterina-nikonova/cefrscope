@@ -102,11 +102,13 @@ def compute_readability(text: str) -> list[float]:
 
 
 def _corpus_bigrams(corpus) -> list[str]:
+    stop_words = set(stopwords.words('english'))
     return [
         f"{a} {b}"
         for sent in corpus.sents()
         for a, b in nltk.bigrams(w.lower() for w in sent)
         if a.isalpha() and b.isalpha()
+        and a not in stop_words and b not in stop_words
     ]
 
 
