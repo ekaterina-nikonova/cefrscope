@@ -77,7 +77,7 @@ Five models were trained and evaluated on a stratified 75/25 train/test split:
 | Feed-forward neural network (Word2Vec) | ~44% | ~43% |
 | **Logistic Regression (N-grams + readability)** | **54.1%** | **53.4%** |
 | **Multinomial NB — TF-IDF (N-grams)** | **55.1%** | **54.8%** |
-| **NLTK Naive Bayes (unigrams + bigrams)** | **57.8%** | **56.9%** |
+| **NLTK Naive Bayes (unigrams + bigrams)** | **56.1%** | **55.1%** |
 
 The **TF-IDF vectorizer outperformed Count Vectorizer** for Multinomial NB, consistent
 with the expectation that rarer, level-specific vocabulary is more informative than

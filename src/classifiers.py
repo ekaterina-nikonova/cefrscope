@@ -135,8 +135,8 @@ class NLTKNBClassifier:
         "Shows which words in your text most strongly indicate the predicted level "
         "compared to the next-best class."
     )
-    accuracy = 0.578
-    f1 = 0.569
+    accuracy = 0.561
+    f1 = 0.551
 
     def __init__(self) -> None:
         with open(MODELS_DIR / 'nltk_nb.pkl', 'rb') as fh:
@@ -180,6 +180,21 @@ class NLTKNBClassifier:
                     scored.append((w, ratio))
 
         scored.sort(key=lambda x: x[1], reverse=True)
+
+        if not scored:
+            # No feature in the text strictly favours the predicted class over all others.
+            # Fall back to showing the features that are present, ranked by P(feature|class).
+            for w in self._word_features:
+                fname = f'contains({w})'
+                if not features.get(fname, False):
+                    continue
+                key = (label, fname)
+                if key not in fd:
+                    continue
+                p_pred = fd[key].prob(True)
+                if p_pred > 0:
+                    scored.append((w, p_pred))
+            scored.sort(key=lambda x: x[1], reverse=True)
 
         return Prediction(
             label=label,
